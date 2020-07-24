@@ -1,0 +1,47 @@
+#Provide the subscription Id
+$subscriptionId = '0baeb8ad-3e0a-4c8f-a740-07e0327cc188'
+
+#Provide the name of your VM resource group 
+$resourceGroupName ='kaybaba'
+
+#Provide the name of your VNET resource group 
+$resourceGroupName1 ='olsula'
+
+#Provide the name of an existing virtual network where virtual machine will be created
+$virtualNetworkName = 'olsula'
+
+#Provide the name of the virtual machine
+$virtualMachineName = 'Kaybaba'
+
+#Provide the Location of the virtual machine
+$Location = "West US"
+
+#Get all the vm sizes in a region using below script:
+#e.g. Get-AzVMSize -Location westus
+$virtualMachineSize = 'Standard_DS1_V2'
+
+#Set the context to the subscription Id where Managed Disk will be created
+Select-AzSubscription -SubscriptionId $SubscriptionId
+
+#Get the virtual network where virtual machine will be hosted
+$vnet = Get-AzVirtualNetwork -Name $virtualNetworkName -ResourceGroupName $resourceGroupName1
+
+#Get the subnet where virtual machine will be hosted
+$subnet = Get-AzVirtualNetworkSubnetConfig -Name "default" -VirtualNetwork $vnet
+
+#Create a public IP for the VM
+$publicIp = New-AzPublicIpAddress -ResourceGroupName $resourceGroupName -Location $Location -AllocationMethod Dynamic -IdleTimeOutInMinutes 4 -Name "kaybaba$(random)" -Sku Basic
+
+# Create NIC in the first subnet of the virtual network
+$nic = New-AzNetworkInterface -Name ($VirtualMachineName.ToLower()+'_nic') -ResourceGroupName $resourceGroupName -Location $Location -SubnetId $vnet.subnets[0].Id -PublicIpAddressId $publicIp.Id
+
+$cred = Get-Credential
+
+#Initialize virtual machine configuration
+$VirtualMachine = New-AzVMConfig -VMName $virtualMachineName -VMSize $virtualMachineSize
+$VirtualMachine = Set-AzVMOperatingSystem -VM $VirtualMachine -Windows -ComputerName $virtualMachineName -Credential $Cred -ProvisionVMAgent -EnableAutoUpdate
+$VirtualMachine = Set-AzVMSourceImage -VM $VirtualMachine -PublisherName MicrosoftWindowsServer -Offer WindowsServer -Skus 2016-Datacenter -Version Latest
+$VirtualMachine = Add-AzVMNetworkInterface -VM $VirtualMachine -Id $nic.Id
+
+#Create the virtual machine with Managed Disk
+New-AzVM -VM $VirtualMachine -ResourceGroupName $resourceGroupName -Location $Location
